@@ -3,6 +3,8 @@ from datetime import timedelta, datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+
 
 
 # --------------------------------------------------------------------
@@ -85,6 +87,8 @@ def main():
     conn.autocommit = False
     cursor = conn.cursor()
     execute_program(cursor)
+    cursor.close()
+    conn.close()
 
 
 
@@ -116,3 +120,10 @@ with DAG(
         task_id="load_raw_from_s3_to_snowflake",
         python_callable=main
     )
+
+    trigger_dag_two = TriggerDagRunOperator(
+        task_id="trigger_dag_two",
+        trigger_dag_id="ecommerce_transform_raw_to_models"   # DAG ID from ecommerce_transform_raw_to_model.py
+    )
+
+    load_orders_task >> trigger_dag_two
