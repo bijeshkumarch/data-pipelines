@@ -3,3 +3,6 @@ airflow/logs/dag_processor/
 
 airflow/.env
 
+airflow/logs/
+
+airflow/dags/__pycache__/
