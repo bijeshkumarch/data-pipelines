@@ -20,20 +20,48 @@ The goal of this pipeline is to:
 3. Transform them into **MODELED (DIM/FACT) tables**.
 4. Automate the entire workflow using **Airflow DAGs**.
 
-This project reflects real-world practices used in product-based companies.
+This project reflects real-world practices used in modern companies.
 
 ---
 
 ## 🏗️ Architecture
 
+### 🖼️ Architecture Diagram
+
 ```
-S3 (raw zone)
-    ↓ COPY INTO (Snowflake)
-Snowflake RAW Schema
-    ↓ Transform using SQL executed via SnowflakeHook
-Snowflake MODEL Schema (DIM + FACT tables)
-    ↓
-Airflow orchestrates the flow end-to-end
+           +-----------------------+
+           |        Kaggle         |
+           |  (Indian E‑Commerce   |
+           |       Dataset)        |
+           +-----------+-----------+
+                       |
+                       |  CSV Files (Manual Upload)
+                       v
+        +------------------------------------+
+        |              AWS S3                |
+        |  indian-ecommerce-data/raw/sales/  |
+        +-----------------+------------------+
+                          |
+                          | COPY INTO
+                          v
+        +------------------------------------+
+        |            Snowflake RAW           |
+        |       (Landing/Staging Layer)      |
+        +-----------------+------------------+
+                          |
+                          | SQL Transforms
+                          v
+        +------------------------------------+
+        |          Snowflake MODEL           |
+        |     (DIM_CUSTOMER, FACT_ORDER…)    |
+        +-----------------+------------------+
+                          |
+                          | Orchestration
+                          v
+     +------------------------------------------+
+     |             Apache Airflow               |
+     |   DAG1: S3 → RAW  |  DAG2: RAW → MODEL   |
+     +------------------------------------------+
 ```
 
 ---
@@ -58,6 +86,17 @@ Airflow orchestrates the flow end-to-end
 |   |  |  └── UTIL/                                # DDL files for UTIL schema
 |   |  └── views/
 └── README.md
+```
+
+---
+
+📂 S3 Folder Structure
+indian-ecommerce-data/raw/sales/List of Orders[.]csv'
+```
+s3://<your-bucket-name>indian-ecommerce-data/raw/sales/
+├── List of Orders.csv
+├── Order Details.csv
+└── Sales target.csv
 ```
 
 ---
@@ -109,7 +148,7 @@ Password: airflow
 
 ```
 git clone https://github.com/bijeshkumarch/data-pipelines.git
-cd data-pipelines
+cd data-pipelines/airflow
 ```
 
 add a .env file in the directory airflow/ and put the content below or modify accordingly
@@ -148,6 +187,9 @@ In the Airflow UI:
 * DDL files are available inside the `snowflake/ddl/` directory and can be executed manually in Snowflake.
 * The project follows a **clean separation** of RAW and MODEL layers.
 * All transformations are executed using **cursor.execute()** from the Airflow task.
+* You need to upload the csv files in S3 with exact same names.
+* You need first to populate the utility table TABLE_S3_MAP_MD with correct raw table name and its corresponding S3 object name.
+* Also need to populate utility table TRANSFORM_PROCESS_MD only once wich will hold last run of transform dag. We check if there is any load happened in raw tables which is greater than last run of transform dag, then we transform again.
 
 ---
 
@@ -158,6 +200,21 @@ In the Airflow UI:
 * AWS IAM role used in the storage integration has proper S3 access.
 
 ---
+
+## 🔄 Pipeline Logic
+
+* The pipeline uses **Snowflake External Storage Integration** to check S3 for file modifications and access S3 file's data.
+* RAW loading DAG loads data only if new/updated files are detected in S3.
+* The **transformation DAG** (RAW → MODEL) is triggered **only on successful completion** of the RAW loading DAG.
+* The **transformation DAG** will perform its action only if there is a new load in raw tables.
+* This is a full load logic.
+
+---
+
+## ❗ About The Data
+List of Orders-This dataset contains purchase information. The information includes ID, Date of Purchase and customer details
+Order Details- This dataset contains order ID, with the order price, quantity,profit, category and subcategory of product
+Sales target-This dataset contains sales target amount and date for each product category
 
 
 ## 📊 Future Enhancements
